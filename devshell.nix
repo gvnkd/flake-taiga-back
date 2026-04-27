@@ -1,5 +1,10 @@
-{ pkgs, devshell, devshellLib, python, projectRoot }:
+{ pkgs, devshell, devshellLib, python, pythonEnv, taigaBack, projectRoot, devConfig }:
 
+let
+  gunicornCmd = "DJANGO_SETTINGS_MODULE=dev-config PYTHONPATH=\"${projectRoot}:${projectRoot}/settings:${pythonEnv}/${python.sitePackages}:$PRJ_ROOT\" ${pythonEnv}/bin/python -m gunicorn taiga.wsgi:application --name taiga_api --bind 0.0.0.0:8000 --workers 2 --log-level info --access-logfile -";
+
+  managePy = "${pythonEnv}/bin/python ${projectRoot}/manage.py";
+in
 devshellLib.mkShell {
   imports = [ "${devshell}/extra/services/postgres.nix" ];
 
@@ -21,20 +26,21 @@ devshellLib.mkShell {
     python.pkgs.coverage
     gettext
     rabbitmq-server
+    curl
   ];
 
   env = [
     {
       name = "DJANGO_SETTINGS_MODULE";
-      value = "tests.config";
+      value = "dev-config";
     }
     {
       name = "PYTHONPATH";
-      value = "${projectRoot}:${projectRoot}/settings";
+      eval = "${projectRoot}:${projectRoot}/settings:${pythonEnv}/${python.sitePackages}:$PRJ_ROOT";
     }
     {
-      name = "TAIGA_TEST_DB_NAME";
-      value = "taiga";
+      name = "TAIGA_DEV_CONFIG";
+      value = "${devConfig}";
     }
     {
       name = "RABBITMQ_MNESIA_BASE";
@@ -50,24 +56,31 @@ devshellLib.mkShell {
     }
   ];
 
+  devshell.startup.link-dev-config = {
+    text = ''
+      ln -sf "$TAIGA_DEV_CONFIG" "$PRJ_ROOT/dev-config.py"
+    '';
+  };
+
   serviceGroups = {
     db = {
       description = "database (PostgreSQL)";
-      services = {
-        postgres.command = "postgres";
-      };
+      services.postgres.command = "postgres";
     };
     queue = {
       description = "message queue (RabbitMQ)";
-      services = {
-        rabbitmq.command = "mkdir -p $PRJ_DATA_DIR/rabbitmq/mnesia $PRJ_DATA_DIR/rabbitmq/log && rabbitmq-server";
-      };
+      services.rabbitmq.command = "mkdir -p $PRJ_DATA_DIR/rabbitmq/mnesia $PRJ_DATA_DIR/rabbitmq/log && rabbitmq-server";
+    };
+    api = {
+      description = "taiga API (Gunicorn)";
+      services.taiga.command = gunicornCmd;
     };
     services = {
-      description = "all services (PostgreSQL + RabbitMQ)";
+      description = "all services (PostgreSQL + RabbitMQ + Taiga API)";
       services = {
         postgres.command = "postgres";
         rabbitmq.command = "mkdir -p $PRJ_DATA_DIR/rabbitmq/mnesia $PRJ_DATA_DIR/rabbitmq/log && rabbitmq-server";
+        taiga.command = gunicornCmd;
       };
     };
   };
@@ -79,8 +92,8 @@ devshellLib.mkShell {
       help = "Create the taiga database and run migrations";
       command = ''
         createdb taiga 2>/dev/null || true
-        python manage.py migrate
-        python manage.py loaddata initial_project_templates || true
+        ${managePy} migrate
+        ${managePy} loaddata initial_project_templates || true
       '';
     }
     {
@@ -90,27 +103,30 @@ devshellLib.mkShell {
       command = ''
         dropdb --if-exists taiga
         createdb taiga
-        python manage.py migrate
-        python manage.py loaddata initial_project_templates || true
+        ${managePy} migrate
+        ${managePy} loaddata initial_project_templates || true
       '';
     }
     {
       name = "runserver";
       category = "development";
-      help = "Start the Django development server";
-      command = "python manage.py runserver";
+      help = "Start the Django development server (auto-reload)";
+      command = "${managePy} runserver 0.0.0.0:8000";
     }
     {
       name = "test";
       category = "development";
       help = "Run the test suite with pytest";
-      command = "pytest \"$@\"";
+      command = ''
+        export DJANGO_SETTINGS_MODULE=tests.config
+        pytest "$@"
+      '';
     }
     {
       name = "lint";
       category = "development";
       help = "Run flake8 linter";
-      command = "flake8 .";
+      command = "flake8 ${projectRoot}";
     }
   ];
 }
