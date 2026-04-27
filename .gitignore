@@ -1,5 +1,6 @@
 .data/
 .direnv/
 __pycache__/
+dev-config.py
 result
 result-*

@@ -1,1 +1,0 @@
-/nix/store/s37awjjyh9lnpkgvpfca8wc75p48gv7k-dev-config.py

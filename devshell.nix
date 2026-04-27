@@ -58,7 +58,7 @@ devshellLib.mkShell {
 
   devshell.startup.link-dev-config = {
     text = ''
-      ln -sf "$TAIGA_DEV_CONFIG" "$PRJ_ROOT/dev-config.py"
+      cp "$TAIGA_DEV_CONFIG" "$PRJ_ROOT/dev-config.py"
     '';
   };
 
