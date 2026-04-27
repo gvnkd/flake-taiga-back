@@ -68,7 +68,6 @@
         devShells.default = import ./devshell.nix {
           inherit pkgs devshell devshellLib python pythonEnv taigaBack;
           projectRoot = "${taiga-back}";
-          devConfig = ./dev-config.py;
           taigaFront = flake-taiga-front.packages.${system}.default;
         };
       }

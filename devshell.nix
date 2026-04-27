@@ -1,4 +1,4 @@
-{ pkgs, devshell, devshellLib, python, pythonEnv, taigaBack, taigaFront, projectRoot, devConfig }:
+{ pkgs, devshell, devshellLib, python, pythonEnv, taigaBack, taigaFront, projectRoot }:
 
 let
   gunicornCmd = "DJANGO_SETTINGS_MODULE=dev-config PYTHONPATH=\"${projectRoot}:${projectRoot}/settings:${pythonEnv}/${python.sitePackages}:$PRJ_ROOT\" ${pythonEnv}/bin/python -m gunicorn taiga.wsgi:application --name taiga_api --bind 0.0.0.0:8000 --workers 2 --log-level info --access-logfile -";
@@ -42,24 +42,30 @@ let
     ln -s ${frontConf} $out/conf.json
   '';
 
-  nginxConf = pkgs.writeText "nginx-taiga-front.conf" ''
+  nginxConfTemplate = pkgs.writeText "nginx-taiga-front.conf.template" ''
     worker_processes 1;
-    error_log logs/error.log;
+    pid NGINX_PID;
+    error_log NGINX_DIR/logs/error.log;
 
     events {
         worker_connections 64;
     }
 
     http {
-        access_log logs/access.log;
+        access_log NGINX_DIR/logs/access.log;
+        client_body_temp_path NGINX_DIR/body;
+        fastcgi_temp_path NGINX_DIR/fastcgi;
+        proxy_temp_path NGINX_DIR/proxy;
+        uwsgi_temp_path NGINX_DIR/uwsgi;
+        scgi_temp_path NGINX_DIR/scgi;
 
         server {
-            listen 9001 default_server;
+            listen 9002 default_server;
             client_max_body_size 100m;
             charset utf-8;
 
             location / {
-                alias ${frontRoot}/;
+                alias FRONT_ROOT/;
                 index index.html;
                 try_files $uri $uri/ /index.html;
             }
@@ -78,7 +84,12 @@ let
   frontCmd = ''
     NGINX_DIR="$PRJ_DATA_DIR/nginx"
     mkdir -p "$NGINX_DIR"/{logs,body,fastcgi,proxy,uwsgi,scgi}
-    nginx -p "$NGINX_DIR" -c ${nginxConf} -g 'daemon off;'
+    sed \
+      -e "s|NGINX_PID|$NGINX_DIR/nginx.pid|" \
+      -e "s|NGINX_DIR|$NGINX_DIR|g" \
+      -e "s|FRONT_ROOT|${frontRoot}|" \
+      ${nginxConfTemplate} > "$NGINX_DIR/nginx.conf"
+    nginx -p "$NGINX_DIR" -c "$NGINX_DIR/nginx.conf" -g 'daemon off;'
   '';
 in
 devshellLib.mkShell {
@@ -88,7 +99,7 @@ devshellLib.mkShell {
     name = "taiga-back";
     motd = ''
       {202}🔨 Welcome to Taiga Backend{reset}
-        Frontend: http://localhost:9001
+        Frontend: http://localhost:9002
         API:      http://localhost:8000/api/v1/
       $(type -p menu &>/dev/null && menu)
     '';
@@ -118,10 +129,6 @@ devshellLib.mkShell {
       eval = "${projectRoot}:${projectRoot}/settings:${pythonEnv}/${python.sitePackages}:$PRJ_ROOT";
     }
     {
-      name = "TAIGA_DEV_CONFIG";
-      value = "${devConfig}";
-    }
-    {
       name = "RABBITMQ_MNESIA_BASE";
       eval = "$PRJ_DATA_DIR/rabbitmq/mnesia";
     }
@@ -134,12 +141,6 @@ devshellLib.mkShell {
       eval = "$PRJ_DATA_DIR/rabbitmq/enabled_plugins";
     }
   ];
-
-  devshell.startup.link-dev-config = {
-    text = ''
-      cp "$TAIGA_DEV_CONFIG" "$PRJ_ROOT/dev-config.py"
-    '';
-  };
 
   serviceGroups = {
     db = {
@@ -155,7 +156,7 @@ devshellLib.mkShell {
       services.taiga.command = gunicornCmd;
     };
     front = {
-      description = "taiga frontend (nginx on :9001)";
+      description = "taiga frontend (nginx on :9002)";
       services.front.command = frontCmd;
     };
     services = {
