@@ -9,9 +9,12 @@
       url = "github:taigaio/taiga-back/6.10.0";
       flake = false;
     };
+    flake-taiga-front = {
+      url = "path:/home/pion/work/dev/flake-taiga-front";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, devshell, taiga-back }:
+  outputs = { self, nixpkgs, flake-utils, devshell, taiga-back, flake-taiga-front }:
     let
       nixosModule = { config, lib, pkgs, ... }@moduleArgs:
         let
@@ -66,6 +69,7 @@
           inherit pkgs devshell devshellLib python pythonEnv taigaBack;
           projectRoot = "${taiga-back}";
           devConfig = ./dev-config.py;
+          taigaFront = flake-taiga-front.packages.${system}.default;
         };
       }
     ) // {
