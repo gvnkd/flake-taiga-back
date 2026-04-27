@@ -43,14 +43,17 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1777326715,
-        "narHash": "sha256-wfTmEZeYohDmrtLwRLA6h12VqYVPvi/CMbaESf0sGrM=",
-        "path": "/home/pion/work/dev/flake-taiga-front",
-        "type": "path"
+        "lastModified": 1777326681,
+        "narHash": "sha256-zzUm11Oo65STMkqoaFjHg21Yneor0YbVNBbv1dzM5aU=",
+        "owner": "gvnkd",
+        "repo": "flake-taiga-front",
+        "rev": "fa0e54f11b06aceace78581da07464651cf0c728",
+        "type": "github"
       },
       "original": {
-        "path": "/home/pion/work/dev/flake-taiga-front",
-        "type": "path"
+        "owner": "gvnkd",
+        "repo": "flake-taiga-front",
+        "type": "github"
       }
     },
     "flake-utils": {

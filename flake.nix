@@ -10,7 +10,7 @@
       flake = false;
     };
     flake-taiga-front = {
-      url = "path:/home/pion/work/dev/flake-taiga-front";
+      url = "github:gvnkd/flake-taiga-front";
     };
   };
 
