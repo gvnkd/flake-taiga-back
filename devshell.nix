@@ -81,16 +81,7 @@ let
     }
   '';
 
-  frontCmd = ''
-    NGINX_DIR="$PRJ_DATA_DIR/nginx"
-    mkdir -p "$NGINX_DIR"/{logs,body,fastcgi,proxy,uwsgi,scgi}
-    sed \
-      -e "s|NGINX_PID|$NGINX_DIR/nginx.pid|" \
-      -e "s|NGINX_DIR|$NGINX_DIR|g" \
-      -e "s|FRONT_ROOT|${frontRoot}|" \
-      ${nginxConfTemplate} > "$NGINX_DIR/nginx.conf"
-    nginx -p "$NGINX_DIR" -c "$NGINX_DIR/nginx.conf" -g 'daemon off;'
-  '';
+  frontCmd = "NGINX_DIR=\"$PRJ_DATA_DIR/nginx\" && mkdir -p \"$NGINX_DIR\"/{logs,body,fastcgi,proxy,uwsgi,scgi} && sed -e \"s|NGINX_PID|$NGINX_DIR/nginx.pid|\" -e \"s|NGINX_DIR|$NGINX_DIR|g\" -e \"s|FRONT_ROOT|${frontRoot}|\" ${nginxConfTemplate} > \"$NGINX_DIR/nginx.conf\" && nginx -p \"$NGINX_DIR\" -c \"$NGINX_DIR/nginx.conf\" -g 'daemon off;'";
 in
 devshellLib.mkShell {
   imports = [ "${devshell}/extra/services/postgres.nix" ];
