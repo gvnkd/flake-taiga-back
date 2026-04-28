@@ -339,9 +339,35 @@ in
       };
     };
 
+    rabbitmq = {
+      createLocally = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Create a local RabbitMQ instance, user, vhost, and permissions for Taiga.";
+      };
+      user = mkOption {
+        type = types.str;
+        default = "taiga";
+        description = "RabbitMQ user for Taiga connections.";
+      };
+      password = mkOption {
+        type = types.str;
+        default = "taiga";
+        description = "RabbitMQ password for the Taiga user.";
+      };
+      vhost = mkOption {
+        type = types.str;
+        default = "taiga";
+        description = "RabbitMQ vhost for Taiga. Note: taiga-back strips the leading / from the URL path, so use a non-root vhost name like 'taiga'.";
+      };
+    };
+
     events = {
       rabbitmqUrl = mkOption {
         type = types.str;
+        default = let
+          r = cfg.rabbitmq;
+        in "amqp://${r.user}:${r.password}@localhost:5672/${r.vhost}";
         example = "amqp://taiga:changeme@localhost:5672/taiga";
         description = "RabbitMQ URL for the events push backend.";
       };
@@ -350,6 +376,9 @@ in
     celery = {
       brokerUrl = mkOption {
         type = types.str;
+        default = let
+          r = cfg.rabbitmq;
+        in "amqp://${r.user}:${r.password}@localhost:5672/${r.vhost}";
         example = "amqp://taiga:changeme@localhost:5672/taiga";
         description = "Celery broker URL.";
       };
@@ -441,16 +470,34 @@ in
       '';
     };
 
-    services.rabbitmq = mkIf cfg.database.createLocally {
+    services.rabbitmq = mkIf cfg.rabbitmq.createLocally {
       enable = true;
+      enableManagementPlugin = true;
+    };
+
+    systemd.services.rabbitmq-setup-taiga = mkIf cfg.rabbitmq.createLocally {
+      description = "RabbitMQ setup for Taiga – create user, vhost, and permissions";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "rabbitmq.service" ];
+      requires = [ "rabbitmq.service" ];
+      path = [ pkgs.rabbitmq-server ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        rabbitmqctl add_user ${cfg.rabbitmq.user} ${cfg.rabbitmq.password} || true
+        rabbitmqctl add_vhost ${cfg.rabbitmq.vhost} || true
+        rabbitmqctl set_permissions -p ${cfg.rabbitmq.vhost} ${cfg.rabbitmq.user} ".*" ".*" ".*" || true
+      '';
     };
 
     systemd.services.taiga-setup = {
       description = "Taiga – one-time setup (migrate + collectstatic + initial data)";
       wantedBy = [ "multi-user.target" ];
       before = [ "taiga.service" ] ++ lib.optionals cfg.enableCelery [ "taiga-celery.service" ];
-      after = [ "postgresql.service" "rabbitmq.service" ];
-      wants = [ "postgresql.service" "rabbitmq.service" ];
+      after = [ "postgresql.service" "rabbitmq.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
+      wants = [ "postgresql.service" "rabbitmq.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
       path = [ pkg pkgs.coreutils ];
       serviceConfig = {
         Type = "oneshot";
@@ -470,8 +517,8 @@ in
     systemd.services.taiga = {
       description = "Taiga – Gunicorn WSGI server";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "postgresql.service" "rabbitmq.service" "taiga-setup.service" ];
-      wants = [ "postgresql.service" "rabbitmq.service" "taiga-setup.service" ];
+      after = [ "network.target" "postgresql.service" "rabbitmq.service" "taiga-setup.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
+      wants = [ "postgresql.service" "rabbitmq.service" "taiga-setup.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
       requires = [ "taiga-setup.service" ];
       serviceConfig = {
         Type = "notify";
@@ -496,8 +543,8 @@ in
     systemd.services.taiga-celery = mkIf cfg.enableCelery {
       description = "Taiga – Celery async worker";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "rabbitmq.service" "taiga-setup.service" ];
-      wants = [ "rabbitmq.service" ];
+      after = [ "network.target" "rabbitmq.service" "taiga-setup.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
+      wants = [ "rabbitmq.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
       requires = [ "taiga-setup.service" ];
       serviceConfig = {
         Type = "forking";
