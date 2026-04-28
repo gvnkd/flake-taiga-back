@@ -11,6 +11,8 @@ let
     from settings.common import *
     import os
 
+    BASE_DIR = ${pyStr "${pkg}/app"}
+
     #########################################
     ## GENERIC
     #########################################
