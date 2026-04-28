@@ -360,12 +360,7 @@ in
         default = "taiga";
         description = "RabbitMQ vhost for Taiga. Note: taiga-back strips the leading / from the URL path, so use a non-root vhost name like 'taiga'.";
       };
-      waitTimeout = mkOption {
-        type = types.int;
-        default = 30;
-        description = "Seconds to wait for RabbitMQ to be ready before running setup commands.";
-      };
-    };
+     };
 
     events = {
       rabbitmqUrl = mkOption {
@@ -480,20 +475,8 @@ in
       managementPlugin.enable = true;
     };
 
-    systemd.services.rabbitmq-setup-taiga = mkIf cfg.rabbitmq.createLocally {
-      description = "RabbitMQ setup for Taiga – create user, vhost, and permissions";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "rabbitmq.service" ];
-      requires = [ "rabbitmq.service" ];
-      path = [ pkgs.rabbitmq-server pkgs.coreutils ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-      script = ''
-        RABBITMQ_ERLANG_COOKIE=$$(cat /var/lib/rabbitmq/.erlang.cookie 2>/dev/null || echo RABBITMQ)
-        export RABBITMQ_ERLANG_COOKIE
-        rabbitmqctl wait ${toString cfg.rabbitmq.waitTimeout} || true
+    systemd.services.rabbitmq = mkIf cfg.rabbitmq.createLocally {
+      postStart = ''
         rabbitmqctl add_user ${cfg.rabbitmq.user} ${cfg.rabbitmq.password} || true
         rabbitmqctl add_vhost ${cfg.rabbitmq.vhost} || true
         rabbitmqctl set_permissions -p ${cfg.rabbitmq.vhost} ${cfg.rabbitmq.user} ".*" ".*" ".*" || true
@@ -504,8 +487,8 @@ in
       description = "Taiga – one-time setup (migrate + collectstatic + initial data)";
       wantedBy = [ "multi-user.target" ];
       before = [ "taiga.service" ] ++ lib.optionals cfg.enableCelery [ "taiga-celery.service" ];
-      after = [ "postgresql.service" "rabbitmq.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
-      wants = [ "postgresql.service" "rabbitmq.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
+      after = [ "postgresql.service" "rabbitmq.service" ];
+      wants = [ "postgresql.service" "rabbitmq.service" ];
       path = [ pkg pkgs.coreutils ];
       serviceConfig = {
         Type = "oneshot";
@@ -525,8 +508,8 @@ in
     systemd.services.taiga = {
       description = "Taiga – Gunicorn WSGI server";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "postgresql.service" "rabbitmq.service" "taiga-setup.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
-      wants = [ "postgresql.service" "rabbitmq.service" "taiga-setup.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
+      after = [ "network.target" "postgresql.service" "rabbitmq.service" "taiga-setup.service" ];
+      wants = [ "postgresql.service" "rabbitmq.service" "taiga-setup.service" ];
       requires = [ "taiga-setup.service" ];
       serviceConfig = {
         Type = "notify";
@@ -551,8 +534,8 @@ in
     systemd.services.taiga-celery = mkIf cfg.enableCelery {
       description = "Taiga – Celery async worker";
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "rabbitmq.service" "taiga-setup.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
-      wants = [ "rabbitmq.service" ] ++ lib.optionals cfg.rabbitmq.createLocally [ "rabbitmq-setup-taiga.service" ];
+      after = [ "network.target" "rabbitmq.service" "taiga-setup.service" ];
+      wants = [ "rabbitmq.service" ];
       requires = [ "taiga-setup.service" ];
       serviceConfig = {
         Type = "forking";
