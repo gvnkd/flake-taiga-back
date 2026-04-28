@@ -103,13 +103,20 @@ let
   settingsDir = pkgs.runCommand "taiga-settings" { } ''
     mkdir -p $out/settings
     cp ${pkg}/app/settings/__init__.py $out/settings/
+    cp ${pkg}/app/settings/common.py $out/settings/
     cp ${settingsFile} $out/settings/config.py
   '';
 
-  taigaPython = pkgs.writeShellScriptBin "taiga-python" ''
+  taigaPython = let
+    realPython = pkgs.runCommand "real-python" { } ''
+      mkdir -p $out/bin
+      real=$(grep '^exec "' ${pkg}/bin/python | sed 's/exec "//;s/".*//')
+      ln -s "$real" $out/bin/python
+    '';
+  in pkgs.writeShellScriptBin "taiga-python" ''
     export DJANGO_SETTINGS_MODULE=settings.config
     export PYTHONPATH="${settingsDir}:${pkg}/app:${pkg}/deps"
-    exec "$(readlink -f ${pkg}/bin/python)" "$@"
+    exec ${realPython}/bin/python "$@"
   '';
 
   taigaGunicorn = pkgs.writeShellScriptBin "taiga-gunicorn" ''
