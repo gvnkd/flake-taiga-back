@@ -101,17 +101,18 @@ let
   pkg = cfg.package;
 
   settingsDir = pkgs.runCommand "taiga-settings" { } ''
-    mkdir -p $out
-    cp ${pkg}/app/settings/__init__.py $out/
-    cp ${settingsFile} $out/config.py
+    mkdir -p $out/settings
+    cp ${pkg}/app/settings/__init__.py $out/settings/
+    cp ${settingsFile} $out/settings/config.py
   '';
 
-  djangoEnv = {
-    DJANGO_SETTINGS_MODULE = "settings.config";
-    PYTHONPATH = "${settingsDir}:${pkg}/app:${pkg}/deps";
-  };
+  taigaPython = pkgs.writeShellScriptBin "taiga-python" ''
+    export DJANGO_SETTINGS_MODULE=settings.config
+    export PYTHONPATH="${settingsDir}:${pkg}/app:${pkg}/deps"
+    exec "$(readlink -f ${pkg}/bin/python)" "$@"
+  '';
 
-  managePy = "${pkg}/bin/python ${pkg}/manage.py";
+  managePy = "${taigaPython}/bin/taiga-python ${pkg}/manage.py";
 in
 {
   options.services.taiga = {
