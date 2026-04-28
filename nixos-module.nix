@@ -360,6 +360,11 @@ in
         default = "taiga";
         description = "RabbitMQ vhost for Taiga. Note: taiga-back strips the leading / from the URL path, so use a non-root vhost name like 'taiga'.";
       };
+      waitTimeout = mkOption {
+        type = types.int;
+        default = 30;
+        description = "Seconds to wait for RabbitMQ to be ready before running setup commands.";
+      };
     };
 
     events = {
@@ -480,12 +485,15 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "rabbitmq.service" ];
       requires = [ "rabbitmq.service" ];
-      path = [ pkgs.rabbitmq-server ];
+      path = [ pkgs.rabbitmq-server pkgs.coreutils ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
       };
       script = ''
+        RABBITMQ_ERLANG_COOKIE=$$(cat /var/lib/rabbitmq/.erlang.cookie 2>/dev/null || echo RABBITMQ)
+        export RABBITMQ_ERLANG_COOKIE
+        rabbitmqctl wait ${toString cfg.rabbitmq.waitTimeout} || true
         rabbitmqctl add_user ${cfg.rabbitmq.user} ${cfg.rabbitmq.password} || true
         rabbitmqctl add_vhost ${cfg.rabbitmq.vhost} || true
         rabbitmqctl set_permissions -p ${cfg.rabbitmq.vhost} ${cfg.rabbitmq.user} ".*" ".*" ".*" || true
