@@ -112,6 +112,14 @@ let
     exec "$(readlink -f ${pkg}/bin/python)" "$@"
   '';
 
+  taigaGunicorn = pkgs.writeShellScriptBin "taiga-gunicorn" ''
+    exec ${taigaPython}/bin/taiga-python -m gunicorn "$@"
+  '';
+
+  taigaCelery = pkgs.writeShellScriptBin "taiga-celery" ''
+    exec ${taigaPython}/bin/taiga-python -m celery "$@"
+  '';
+
   managePy = "${taigaPython}/bin/taiga-python ${pkg}/manage.py";
 in
 {
@@ -435,7 +443,6 @@ in
       after = [ "postgresql.service" "rabbitmq.service" ];
       wants = [ "postgresql.service" "rabbitmq.service" ];
       path = [ pkg pkgs.coreutils ];
-      environment = djangoEnv;
       serviceConfig = {
         Type = "oneshot";
         User = cfg.user;
@@ -457,14 +464,13 @@ in
       after = [ "network.target" "postgresql.service" "rabbitmq.service" "taiga-setup.service" ];
       wants = [ "postgresql.service" "rabbitmq.service" "taiga-setup.service" ];
       requires = [ "taiga-setup.service" ];
-      environment = djangoEnv;
       serviceConfig = {
         Type = "notify";
         User = cfg.user;
         Group = cfg.group;
         WorkingDirectory = "${pkg}";
         ExecStart = ''
-          ${pkg}/bin/gunicorn taiga.wsgi:application \
+          ${taigaGunicorn}/bin/taiga-gunicorn taiga.wsgi:application \
             --name taiga_api \
             --bind ${cfg.gunicorn.bind} \
             --workers ${toString cfg.gunicorn.workers} \
@@ -484,14 +490,13 @@ in
       after = [ "network.target" "rabbitmq.service" "taiga-setup.service" ];
       wants = [ "rabbitmq.service" ];
       requires = [ "taiga-setup.service" ];
-      environment = djangoEnv;
       serviceConfig = {
         Type = "forking";
         User = cfg.user;
         Group = cfg.group;
         WorkingDirectory = "${pkg}";
         ExecStart = ''
-          ${pkg}/bin/celery -A taiga.celery worker -B \
+          ${taigaCelery}/bin/taiga-celery -A taiga.celery worker -B \
             --concurrency ${toString cfg.celery.concurrency} \
             -l INFO \
             ${cfg.celery.extraArgs}
