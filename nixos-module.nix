@@ -472,7 +472,7 @@ in
 
     services.rabbitmq = mkIf cfg.rabbitmq.createLocally {
       enable = true;
-      enableManagementPlugin = true;
+      managementPlugin.enable = true;
     };
 
     systemd.services.rabbitmq-setup-taiga = mkIf cfg.rabbitmq.createLocally {
