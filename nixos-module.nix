@@ -100,10 +100,15 @@ let
 
   pkg = cfg.package;
 
+  settingsDir = pkgs.runCommand "taiga-settings" { } ''
+    mkdir -p $out
+    cp ${pkg}/app/settings/__init__.py $out/
+    cp ${settingsFile} $out/config.py
+  '';
+
   djangoEnv = {
     DJANGO_SETTINGS_MODULE = "settings.config";
-    PYTHONPATH = "${pkg}/app:${pkg}/deps";
-    TAIGA_SETTINGS_FILE = settingsFile;
+    PYTHONPATH = "${settingsDir}:${pkg}/app:${pkg}/deps";
   };
 
   managePy = "${pkg}/bin/python ${pkg}/manage.py";
