@@ -5,6 +5,8 @@ let
 
   formatBool = v: if v then "True" else "False";
 
+  pyStr = s: "\"" + (replaceStrings ["\"" "\\"] ["\\\"" "\\\\"] s) + "\"";
+
   settingsFile = pkgs.writeText "config.py" ''
     from settings.common import *
     import os
@@ -13,21 +15,21 @@ let
     ## GENERIC
     #########################################
     DEBUG = ${formatBool cfg.debug}
-    SECRET_KEY = ${escapeShellArg cfg.secretKey}
+    SECRET_KEY = ${pyStr cfg.secretKey}
 
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': ${escapeShellArg cfg.database.name},
-            'USER': ${escapeShellArg cfg.database.user},
-            'PASSWORD': ${escapeShellArg cfg.database.passwordFile} if os.path.isfile(${escapeShellArg cfg.database.passwordFile}) else ${escapeShellArg cfg.database.password},
-            'HOST': ${escapeShellArg cfg.database.host},
+            'NAME': ${pyStr cfg.database.name},
+            'USER': ${pyStr cfg.database.user},
+            'PASSWORD': open(${pyStr cfg.database.passwordFile}).read().strip() if os.path.isfile(${pyStr cfg.database.passwordFile}) else ${pyStr cfg.database.password},
+            'HOST': ${pyStr cfg.database.host},
             'PORT': "${toString cfg.database.port}",
         }
     }
 
-    TAIGA_SITES_SCHEME = ${escapeShellArg cfg.scheme}
-    TAIGA_SITES_DOMAIN = ${escapeShellArg cfg.domain}
+    TAIGA_SITES_SCHEME = ${pyStr cfg.scheme}
+    TAIGA_SITES_DOMAIN = ${pyStr cfg.domain}
     TAIGA_URL = f"{TAIGA_SITES_SCHEME}://{TAIGA_SITES_DOMAIN}"
 
     SITES = {
@@ -37,29 +39,29 @@ let
 
     MEDIA_URL = f"{TAIGA_URL}/media/"
     STATIC_URL = f"{TAIGA_URL}/static/"
-    MEDIA_ROOT = ${escapeShellArg cfg.mediaRoot}
-    STATIC_ROOT = ${escapeShellArg cfg.staticRoot}
+    MEDIA_ROOT = ${pyStr cfg.mediaRoot}
+    STATIC_ROOT = ${pyStr cfg.staticRoot}
 
-    LANGUAGE_CODE = ${escapeShellArg cfg.languageCode}
+    LANGUAGE_CODE = ${pyStr cfg.languageCode}
 
     #########################################
     ## EVENTS
     #########################################
     EVENTS_PUSH_BACKEND = "taiga.events.backends.rabbitmq.EventsPushBackend"
     EVENTS_PUSH_BACKEND_OPTIONS = {
-        "url": ${escapeShellArg cfg.events.rabbitmqUrl}
+        "url": ${pyStr cfg.events.rabbitmqUrl}
     }
 
     #########################################
     ## CELERY
     #########################################
-    CELERY_ENABLED = True
-    CELERY_BROKER_URL = ${escapeShellArg cfg.celery.brokerUrl}
+    CELERY_ENABLED = ${formatBool cfg.enableCelery}
+    CELERY_BROKER_URL = ${pyStr cfg.celery.brokerUrl}
     CELERY_RESULT_BACKEND = None
     CELERY_ACCEPT_CONTENT = ['pickle', ]
     CELERY_TASK_SERIALIZER = "pickle"
     CELERY_RESULT_SERIALIZER = "pickle"
-    CELERY_TIMEZONE = ${escapeShellArg cfg.celery.timezone}
+    CELERY_TIMEZONE = ${pyStr cfg.celery.timezone}
     CELERY_TASK_DEFAULT_QUEUE = 'tasks'
     CELERY_QUEUES = (
         Queue('tasks', routing_key='task.#'),
@@ -72,13 +74,13 @@ let
     #########################################
     ## EMAIL
     #########################################
-    EMAIL_BACKEND = ${escapeShellArg cfg.email.backend}
-    DEFAULT_FROM_EMAIL = ${escapeShellArg cfg.email.fromAddress}
+    EMAIL_BACKEND = ${pyStr cfg.email.backend}
+    DEFAULT_FROM_EMAIL = ${pyStr cfg.email.fromAddress}
     EMAIL_USE_TLS = ${formatBool cfg.email.useTls}
     EMAIL_USE_SSL = ${formatBool cfg.email.useSsl}
-    EMAIL_HOST = ${escapeShellArg cfg.email.host}
+    EMAIL_HOST = ${pyStr cfg.email.host}
     EMAIL_PORT = ${toString cfg.email.port}
-    EMAIL_HOST_USER = ${escapeShellArg cfg.email.user}
+    EMAIL_HOST_USER = ${pyStr cfg.email.user}
     CHANGE_NOTIFICATIONS_MIN_INTERVAL = ${toString cfg.email.changeNotificationsInterval}
 
     #########################################
